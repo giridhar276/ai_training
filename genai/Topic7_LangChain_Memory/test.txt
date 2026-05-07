@@ -1,0 +1,19 @@
+
+
+
+
+you have opened chatbot window
+---------------------------
+
+
+chatbot: Hello
+Human:   Hello
+
+chatbot: My name is Mr.Ram. How may I assist you today?
+human:  I have some travel plan for 5 days to travel to UK
+
+chatbot: Could you please let me know the total no. of people who is going to travel?
+human: we are total 4..
+
+
+chatbot: Do you particular places to visit?
