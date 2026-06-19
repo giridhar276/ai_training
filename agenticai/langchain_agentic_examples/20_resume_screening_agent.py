@@ -1,97 +1,104 @@
 """
-Example 3: Resume Screening Agent
+Resume Screening Agent using LangChain
 
 Use case:
-A recruiter wants to screen a candidate for a Python + LangChain role.
-
-Agentic AI idea:
-The agent decides whether to:
-1. Check technical fit
-2. Check experience fit
-3. Give final recruiter recommendation
-
-This is a mock HR screening demo.
+The agent screens a candidate profile, checks technical fit,
+checks culture fit, and gives a hiring recommendation.
 """
 
 import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain.agents import initialize_agent, Tool
+from langchain.agents import create_agent
+from langchain_core.tools import tool
 
 load_dotenv()
 
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
-    raise ValueError("OPENAI_API_KEY not found. Add it inside your .env file.")
-
-
-def check_technical_fit(candidate_profile: str) -> str:
-    return """
-Technical Fit:
-- Python: Strong
-- Pandas: Good
-- LangChain: Basic to intermediate
-- APIs: Good
-- Missing: LangGraph production experience
-Technical score: 7.5/10
-"""
-
-
-def check_experience_fit(candidate_profile: str) -> str:
-    return """
-Experience Fit:
-- Total experience: 5 years
-- Relevant AI/ML experience: 2 years
-- Client communication: Good
-- Training/mentoring: Yes
-Experience score: 8/10
-"""
-
-
-def recruiter_recommendation(candidate_profile: str) -> str:
-    return """
-Recruiter Recommendation:
-Shortlist the candidate for technical interview.
-Focus interview questions on LangChain tools, agents, RAG, APIs, and deployment.
-"""
-
+    raise ValueError("OPENAI_API_KEY not found. Please add it in your .env file.")
 
 llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0, api_key=api_key)
 
-tools = [
-    Tool(
-        name="CheckTechnicalFit",
-        func=check_technical_fit,
-        description="Use this to evaluate technical skills of a candidate.",
-    ),
-    Tool(
-        name="CheckExperienceFit",
-        func=check_experience_fit,
-        description="Use this to evaluate experience and project fit.",
-    ),
-    Tool(
-        name="RecruiterRecommendation",
-        func=recruiter_recommendation,
-        description="Use this to give final recruiter recommendation.",
-    ),
-]
 
-agent = initialize_agent(
+@tool
+def check_python_skills(candidate_profile: str) -> str:
+    """Use this tool to evaluate Python and data skills from a candidate profile."""
+    profile = candidate_profile.lower()
+    score = 0
+    if "python" in profile:
+        score += 30
+    if "pandas" in profile:
+        score += 25
+    if "machine learning" in profile or "ml" in profile:
+        score += 20
+    if "langchain" in profile:
+        score += 25
+    return f"Technical skill score: {score}/100 based on Python, Pandas, ML, and LangChain keywords."
+
+
+@tool
+def check_experience_level(candidate_profile: str) -> str:
+    """Use this tool to evaluate candidate experience level."""
+    profile = candidate_profile.lower()
+    if "8 years" in profile or "10 years" in profile:
+        return "Experience level: Senior candidate"
+    if "5 years" in profile or "6 years" in profile:
+        return "Experience level: Mid-level candidate"
+    if "1 year" in profile or "2 years" in profile:
+        return "Experience level: Junior candidate"
+    return "Experience level: Not clearly mentioned"
+
+
+@tool
+def check_culture_fit(candidate_profile: str) -> str:
+    """Use this tool to evaluate teamwork, mentoring, and communication fit."""
+    profile = candidate_profile.lower()
+    points = []
+    if "mentored" in profile:
+        points.append("Mentoring experience found")
+    if "client" in profile:
+        points.append("Client communication experience found")
+    if "team" in profile:
+        points.append("Team collaboration found")
+    if not points:
+        points.append("Culture fit signals are weak")
+    return "Culture fit: " + ", ".join(points)
+
+
+@tool
+def generate_hr_summary(candidate_name: str, recommendation: str) -> str:
+    """Use this tool to create final HR screening summary."""
+    return f"Final HR Summary for {candidate_name}: {recommendation}"
+
+
+tools = [check_python_skills, check_experience_level, check_culture_fit, generate_hr_summary]
+
+agent = create_agent(
+    model=llm,
     tools=tools,
-    llm=llm,
-    agent="zero-shot-react-description",
-    verbose=True,
-    handle_parsing_errors=True,
+    system_prompt="""
+You are a resume screening agent.
+Your job:
+- Review candidate profile.
+- Use technical, experience, and culture tools.
+- Give a final recommendation: Shortlist, Hold, or Reject.
+- Keep the explanation simple and practical.
+"""
 )
 
 candidate = """
-Candidate: Priya
+Candidate Name: Priya Sharma
 Experience: 5 years
-Skills: Python, Pandas, FastAPI, LangChain basics, OpenAI API
-Projects: Built chatbot, document summarizer, and customer support automation
-Behavior: Mentored juniors and handled client demos
+Skills: Python, Pandas, Machine Learning, LangChain, FastAPI
+Behavior: Mentored juniors, worked with client teams, handled demos
+Role Applied: AI Engineer
 """
 
-result = agent.invoke("Screen this candidate for a Python LangChain developer role:\n" + candidate)
-print("\nFINAL ANSWER:\n")
-print(result["output"])
+question = f"Screen this candidate and give final recommendation:\n{candidate}"
+
+print("\nRecruiter Request:")
+print(question)
+response = agent.invoke({"messages": [{"role": "user", "content": question}]})
+print("\nAgent Response:")
+print(response["messages"][-1].content)
